@@ -292,7 +292,20 @@ export default function ComparePage() {
       lines.push('');
     }
 
-    if (comparisonResult.diskChanges.added.length > 0) {
+    const cpuChanges = comparisonResult.changed.filter(item => item.category === 'CPU');
+    const memoryChanges = comparisonResult.changed.filter(item => item.category === '内存');
+    if (cpuChanges.length > 0 || memoryChanges.length > 0) {
+      lines.push('【硬件变更】');
+      cpuChanges.forEach(item => {
+        lines.push(`* CPU：${item.oldValue} → ${item.newValue}`);
+      });
+      memoryChanges.forEach(item => {
+        lines.push(`* 内存：${item.oldValue} → ${item.newValue}`);
+      });
+      lines.push('');
+    }
+
+    if (comparisonResult.diskChanges.added.length > 0 || comparisonResult.diskChanges.removed.length > 0 || comparisonResult.diskChanges.capacityChanged.length > 0) {
       lines.push('【磁盘变更】');
       comparisonResult.diskChanges.added.forEach(disk => {
         const usedPercent = (disk.used / disk.total) * 100;
@@ -384,7 +397,7 @@ export default function ComparePage() {
     }
 
     const changedItems = comparisonResult.changed.filter(item =>
-      item.category !== '磁盘' && item.category !== '内存'
+      item.category !== '磁盘' && item.category !== '内存' && item.category !== 'CPU'
     );
     if (changedItems.length > 0) {
       lines.push('【配置变更】');

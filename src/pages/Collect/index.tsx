@@ -170,12 +170,14 @@ export default function CollectPage() {
     switchToDemo,
     switchToDesktop,
     importProfile,
-    exportCurrentProfile
+    exportCurrentProfile,
+    isDesktopSupported
   } = useAppStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
-  const [pendingImport, setPendingImport] = useState<SystemProfile | null>(null);
+  const [pendingImport, setPendingImport] = useState<{ type: 'profile' | 'report'; data: unknown } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!profile) {
@@ -183,18 +185,87 @@ export default function CollectPage() {
     }
   }, [profile]);
 
+  const validateProfile = (data: unknown): { valid: boolean; profile?: SystemProfile; error?: string } => {
+    if (!data || typeof data !== 'object') {
+      return { valid: false, error: '文件格式不正确，请选择有效的 JSON 文件' };
+    }
+
+    const obj = data as Record<string, unknown>;
+
+    if (!obj.hostname || typeof obj.hostname !== 'string') {
+      return { valid: false, error: '缺少主机名信息，文件不符合主机画像格式' };
+    }
+
+    if (!obj.os || typeof obj.os !== 'object') {
+      return { valid: false, error: '缺少系统信息，文件不符合主机画像格式' };
+    }
+
+    return { valid: true, profile: data as SystemProfile };
+  };
+
+  const validateReport = (data: unknown): { valid: boolean; profile?: SystemProfile; reportConfig?: Partial<import('../../types').ReportConfig>; error?: string } => {
+    if (!data || typeof data !== 'object') {
+      return { valid: false, error: '文件格式不正确，请选择有效的 JSON 文件' };
+    }
+
+    const obj = data as Record<string, unknown>;
+
+    if (!obj.systemProfile) {
+      return { valid: false, error: '缺少系统画像数据，文件不符合维护报告格式' };
+    }
+
+    const profileValidation = validateProfile(obj.systemProfile);
+    if (!profileValidation.valid) {
+      return { valid: false, error: `文件不符合维护报告格式：${profileValidation.error}` };
+    }
+
+    const reportConfig = obj.reportConfig as Record<string, unknown> | undefined;
+
+    return {
+      valid: true,
+      profile: obj.systemProfile as SystemProfile,
+      reportConfig: reportConfig ? {
+        template: reportConfig.template as import('../../types').ReportTemplate,
+        modules: reportConfig.modules as import('../../types').ReportModule[],
+        engineer: reportConfig.engineer as string,
+        processStatus: reportConfig.processStatus as 'pending' | 'processing' | 'completed',
+        notes: reportConfig.notes as string,
+        includeRisks: reportConfig.includeRisks as boolean,
+        includeSuggestions: reportConfig.includeSuggestions as boolean,
+        includeNotes: reportConfig.includeNotes as boolean
+      } : undefined
+    };
+  };
+
   const handleImportFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setImportError(null);
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = JSON.parse(e.target?.result as string) as SystemProfile;
-        setPendingImport(data);
+        const data = JSON.parse(e.target?.result as string);
+
+        if (data._type === 'host-profile-report' && data.systemProfile) {
+          const validation = validateReport(data);
+          if (!validation.valid) {
+            setImportError(validation.error || '文件格式不正确');
+            return;
+          }
+          setPendingImport({ type: 'report', data: validation });
+        } else {
+          const validation = validateProfile(data);
+          if (!validation.valid) {
+            setImportError(validation.error || '文件格式不正确');
+            return;
+          }
+          setPendingImport({ type: 'profile', data: validation.profile });
+        }
         setShowImportConfirm(true);
       } catch {
-        alert('无效的JSON文件格式');
+        setImportError('文件格式不正确，无法解析 JSON 内容');
       }
     };
     reader.readAsText(file);
@@ -202,21 +273,37 @@ export default function CollectPage() {
   }, []);
 
   const confirmImport = () => {
-    if (pendingImport) {
-      importProfile(pendingImport);
-      setShowImportConfirm(false);
-      setPendingImport(null);
+    if (!pendingImport) return;
+
+    if (pendingImport.type === 'report') {
+      const validation = pendingImport.data as { profile?: SystemProfile; reportConfig?: Partial<import('../../types').ReportConfig> };
+      if (validation.profile) {
+        const { importReport } = useAppStore.getState();
+        importReport({
+          systemProfile: validation.profile,
+          reportConfig: validation.reportConfig
+        });
+      }
+    } else {
+      const profile = pendingImport.data as SystemProfile;
+      importProfile(profile);
     }
+
+    setShowImportConfirm(false);
+    setPendingImport(null);
+    setImportError(null);
   };
 
   const cancelImport = () => {
     setShowImportConfirm(false);
     setPendingImport(null);
+    setImportError(null);
   };
 
   const allCompleted = Object.values(collectionStatus).every(s => s === 'completed' || s === 'idle');
   const anyUnsupported = Object.values(collectionStatus).some(s => s === 'unsupported');
   const isDemo = dataSource === 'demo';
+  const desktopSupported = isDesktopSupported();
 
   const SourceIcon = dataSource === 'desktop' ? MonitorCheck : dataSource === 'imported' ? Upload : Database;
   const sourceColor = dataSource === 'desktop' ? 'success' : dataSource === 'imported' ? 'primary' : 'warning';
@@ -277,24 +364,30 @@ export default function CollectPage() {
           <button
             onClick={switchToDesktop}
             className={`p-4 rounded-xl border-2 transition-all text-left ${
-              dataSource === 'desktop'
+              !desktopSupported
+                ? 'border-slate-700/50 bg-slate-800/30 cursor-not-allowed opacity-60'
+                : dataSource === 'desktop'
                 ? 'border-success bg-success/10'
                 : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
             }`}
           >
             <div className="flex items-center gap-3 mb-2">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                dataSource === 'desktop' ? 'bg-success/20' : 'bg-slate-700'
+                !desktopSupported ? 'bg-slate-700/50' : dataSource === 'desktop' ? 'bg-success/20' : 'bg-slate-700'
               }`}>
-                <MonitorCheck className={`w-5 h-5 ${dataSource === 'desktop' ? 'text-success' : 'text-slate-400'}`} />
+                <MonitorCheck className={`w-5 h-5 ${!desktopSupported ? 'text-slate-500' : dataSource === 'desktop' ? 'text-success' : 'text-slate-400'}`} />
               </div>
               <div>
                 <p className="text-white font-medium">桌面采集</p>
-                <p className="text-xs text-slate-500">实时采集本机数据</p>
+                <p className="text-xs text-slate-500">
+                  {!desktopSupported ? '环境不支持' : '实时采集本机数据'}
+                </p>
               </div>
             </div>
             <p className="text-xs text-slate-400">
-              采集当前电脑的系统信息，包括硬件、软件和外设等完整数据
+              {!desktopSupported
+                ? '当前运行环境为浏览器，请使用桌面应用进行真实数据采集'
+                : '采集当前电脑的系统信息，包括硬件、软件和外设等完整数据'}
             </p>
           </button>
 
@@ -338,30 +431,69 @@ export default function CollectPage() {
                 <FileJson className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">确认导入档案</h3>
-                <p className="text-sm text-slate-400">将使用导入的档案作为当前画像</p>
+                <h3 className="text-lg font-semibold text-white">
+                  {pendingImport.type === 'report' ? '导入维护报告' : '确认导入档案'}
+                </h3>
+                <p className="text-sm text-slate-400">
+                  {pendingImport.type === 'report' ? '将恢复报告配置和画像数据' : '将使用导入的档案作为当前画像'}
+                </p>
               </div>
             </div>
             <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <p className="text-slate-500">计算机名</p>
-                  <p className="text-white font-mono">{pendingImport.hostname}</p>
+                  <p className="text-white font-mono">
+                    {(pendingImport.type === 'report'
+                      ? (pendingImport.data as { profile?: SystemProfile }).profile?.hostname
+                      : (pendingImport.data as SystemProfile).hostname) || '-'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-500">操作系统</p>
-                  <p className="text-white">{pendingImport.os.name}</p>
+                  <p className="text-white">
+                    {(pendingImport.type === 'report'
+                      ? (pendingImport.data as { profile?: SystemProfile }).profile?.os?.name
+                      : (pendingImport.data as SystemProfile).os?.name) || '-'}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-500">采集时间</p>
-                  <p className="text-white">{pendingImport.profileTime ? new Date(pendingImport.profileTime).toLocaleString('zh-CN') : '-'}</p>
+                  <p className="text-white">
+                    {(() => {
+                      const profile = pendingImport.type === 'report'
+                        ? (pendingImport.data as { profile?: SystemProfile }).profile
+                        : (pendingImport.data as SystemProfile);
+                      return profile?.profileTime ? new Date(profile.profileTime).toLocaleString('zh-CN') : '-';
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-slate-500">数据来源</p>
-                  <p className="text-white">{getDataSourceLabel(pendingImport.dataSource || 'imported')}</p>
+                  <p className="text-white">{getDataSourceLabel('imported')}</p>
                 </div>
+                {pendingImport.type === 'report' && (pendingImport.data as { reportConfig?: Partial<import('../../types').ReportConfig> }).reportConfig && (
+                  <>
+                    <div>
+                      <p className="text-slate-500">工程师</p>
+                      <p className="text-white">{(pendingImport.data as { reportConfig?: { engineer?: string } }).reportConfig?.engineer || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">处理状态</p>
+                      <p className="text-white">
+                        {((pendingImport.data as { reportConfig?: { processStatus?: string } }).reportConfig?.processStatus || 'pending') === 'completed' ? '已完成' :
+                         ((pendingImport.data as { reportConfig?: { processStatus?: string } }).reportConfig?.processStatus || 'pending') === 'processing' ? '处理中' : '待处理'}
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+            {pendingImport.type === 'report' && (pendingImport.data as { reportConfig?: Partial<import('../../types').ReportConfig> }).reportConfig && (
+              <p className="text-sm text-primary mb-4">
+                ✓ 此文件包含完整的报告配置（工程师、状态、备注等）
+              </p>
+            )}
             <p className="text-sm text-slate-400 mb-4">
               导入后，当前页面、首页、风险页和报告页将同步显示此档案的数据。是否确认导入？
             </p>
@@ -379,6 +511,26 @@ export default function CollectPage() {
                 确认导入
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {importError && (
+        <div className="card-glow p-4 border border-danger/30 bg-danger/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertOctagon className="w-5 h-5 text-danger flex-shrink-0" />
+              <div>
+                <p className="text-danger font-medium">导入失败</p>
+                <p className="text-sm text-slate-400 mt-1">{importError}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setImportError(null)}
+              className="text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
