@@ -95,6 +95,7 @@ export interface SystemProfile {
   profileTime: string;
   dataSource: DataSource;
   sourceDescription?: string;
+  reportConfig?: Partial<ReportConfig>;
 }
 
 export interface RiskItem {

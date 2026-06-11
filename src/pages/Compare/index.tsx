@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import {
   GitCompare,
@@ -10,14 +10,17 @@ import {
   X,
   Monitor,
   History,
-  HardDrive
+  HardDrive,
+  Copy,
+  Check,
+  FileText
 } from 'lucide-react';
-import { SystemProfile, bytesToGB } from '../../types';
+import { SystemProfile, bytesToGB, formatBytes } from '../../types';
 
 function DiskComparison({ changes }: {
   changes: {
-    added: { letter: string; label: string; total: number; used: number; free: number }[];
-    removed: { letter: string; label: string; total: number; used: number; free: number }[];
+    added: { letter: string; label: string; total: number; used: number; free: number; fileSystem?: string }[];
+    removed: { letter: string; label: string; total: number; used: number; free: number; fileSystem?: string }[];
     capacityChanged: {
       disk: string;
       oldTotal: number;
@@ -51,28 +54,46 @@ function DiskComparison({ changes }: {
             新增 / 移除磁盘
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {added.map(disk => (
-              <div key={`add-${disk.letter}`} className="flex items-center gap-3 p-3 bg-success/10 border border-success/30 rounded-lg">
-                <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
-                  <Plus className="w-4 h-4 text-success" />
+            {added.map(disk => {
+              const usedPercent = (disk.used / disk.total) * 100;
+              return (
+                <div key={`add-${disk.letter}`} className="flex items-center gap-3 p-3 bg-success/10 border border-success/30 rounded-lg">
+                  <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
+                    <Plus className="w-4 h-4 text-success" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                    <p className="text-sm text-success">新增 · {bytesToGB(disk.total).toFixed(0)} GB {disk.fileSystem ? `(${disk.fileSystem})` : ''}</p>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-slate-400">
+                      <span>已用: {formatBytes(disk.used)}</span>
+                      <span>可用: {formatBytes(disk.free)}</span>
+                      <span className={usedPercent > 90 ? 'text-danger' : usedPercent > 80 ? 'text-warning' : 'text-success'}>
+                        {usedPercent.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">{disk.letter} {disk.label}</p>
-                  <p className="text-sm text-success">新增 · {bytesToGB(disk.total).toFixed(0)} GB</p>
+              );
+            })}
+            {removed.map(disk => {
+              const usedPercent = (disk.used / disk.total) * 100;
+              return (
+                <div key={`remove-${disk.letter}`} className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/30 rounded-lg">
+                  <div className="w-8 h-8 rounded-lg bg-danger/20 flex items-center justify-center">
+                    <Minus className="w-4 h-4 text-danger" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                    <p className="text-sm text-danger">移除 · {bytesToGB(disk.total).toFixed(0)} GB {disk.fileSystem ? `(${disk.fileSystem})` : ''}</p>
+                    <div className="flex items-center gap-4 mt-1 text-xs text-slate-400">
+                      <span>已用: {formatBytes(disk.used)}</span>
+                      <span>可用: {formatBytes(disk.free)}</span>
+                      <span>{usedPercent.toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-            {removed.map(disk => (
-              <div key={`remove-${disk.letter}`} className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/30 rounded-lg">
-                <div className="w-8 h-8 rounded-lg bg-danger/20 flex items-center justify-center">
-                  <Minus className="w-4 h-4 text-danger" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-white font-medium">{disk.letter} {disk.label}</p>
-                  <p className="text-sm text-danger">移除 · {bytesToGB(disk.total).toFixed(0)} GB</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -251,11 +272,144 @@ export default function ComparePage() {
     loadProfile
   } = useAppStore();
 
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (!profile) {
       loadProfile();
     }
   }, [profile, loadProfile]);
+
+  const generateChangeSummary = useCallback(() => {
+    if (!comparisonResult) return '';
+
+    const lines: string[] = [];
+
+    if (historicalProfile && profile) {
+      lines.push(`【主机画像变更对比】`);
+      lines.push(`主机名：${profile.hostname}`);
+      lines.push(`对比时间：${new Date().toLocaleString('zh-CN')}`);
+      lines.push('');
+    }
+
+    if (comparisonResult.diskChanges.added.length > 0) {
+      lines.push('【磁盘变更】');
+      comparisonResult.diskChanges.added.forEach(disk => {
+        const usedPercent = (disk.used / disk.total) * 100;
+        lines.push(`+ 新增磁盘 ${disk.letter} ${disk.label}：总容量 ${bytesToGB(disk.total).toFixed(0)}GB，已用 ${formatBytes(disk.used)}，可用 ${formatBytes(disk.free)}，使用率 ${usedPercent.toFixed(1)}%`);
+      });
+      comparisonResult.diskChanges.removed.forEach(disk => {
+        lines.push(`- 移除磁盘 ${disk.letter} ${disk.label}：总容量 ${bytesToGB(disk.total).toFixed(0)}GB`);
+      });
+      comparisonResult.diskChanges.capacityChanged.forEach(change => {
+        const changeType = change.newUsedPercent > change.oldUsedPercent ? '使用率上升' : '使用率下降';
+        lines.push(`* 磁盘 ${change.disk} 容量变化：${bytesToGB(change.oldTotal).toFixed(0)}GB → ${bytesToGB(change.newTotal).toFixed(0)}GB，${changeType} ${Math.abs(change.newUsedPercent - change.oldUsedPercent).toFixed(1)}%`);
+      });
+      lines.push('');
+    }
+
+    const softwareAdded = comparisonResult.added.filter(item => item.category === '软件');
+    const softwareRemoved = comparisonResult.removed.filter(item => item.category === '软件');
+    if (softwareAdded.length > 0 || softwareRemoved.length > 0) {
+      lines.push('【软件变更】');
+      if (softwareAdded.length > 0) {
+        lines.push(`新增软件 ${softwareAdded.length} 个：`);
+        softwareAdded.slice(0, 5).forEach(item => {
+          lines.push(`+ ${item.name}${item.value ? ` (${item.value})` : ''}`);
+        });
+        if (softwareAdded.length > 5) {
+          lines.push(`  ...另有 ${softwareAdded.length - 5} 个`);
+        }
+      }
+      if (softwareRemoved.length > 0) {
+        lines.push(`移除软件 ${softwareRemoved.length} 个：`);
+        softwareRemoved.slice(0, 5).forEach(item => {
+          lines.push(`- ${item.name}${item.value ? ` (${item.value})` : ''}`);
+        });
+        if (softwareRemoved.length > 5) {
+          lines.push(`  ...另有 ${softwareRemoved.length - 5} 个`);
+        }
+      }
+      lines.push('');
+    }
+
+    const startupAdded = comparisonResult.added.filter(item => item.category === '启动项');
+    const startupRemoved = comparisonResult.removed.filter(item => item.category === '启动项');
+    if (startupAdded.length > 0 || startupRemoved.length > 0) {
+      lines.push('【启动项变更】');
+      if (startupAdded.length > 0) {
+        lines.push(`新增启动项 ${startupAdded.length} 个：`);
+        startupAdded.slice(0, 3).forEach(item => {
+          lines.push(`+ ${item.name}`);
+        });
+        if (startupAdded.length > 3) {
+          lines.push(`  ...另有 ${startupAdded.length - 3} 个`);
+        }
+      }
+      if (startupRemoved.length > 0) {
+        lines.push(`移除启动项 ${startupRemoved.length} 个：`);
+        startupRemoved.slice(0, 3).forEach(item => {
+          lines.push(`- ${item.name}`);
+        });
+        if (startupRemoved.length > 3) {
+          lines.push(`  ...另有 ${startupRemoved.length - 3} 个`);
+        }
+      }
+      lines.push('');
+    }
+
+    const shareAdded = comparisonResult.added.filter(item => item.category === '共享目录');
+    const shareRemoved = comparisonResult.removed.filter(item => item.category === '共享目录');
+    if (shareAdded.length > 0 || shareRemoved.length > 0) {
+      lines.push('【共享目录变更】');
+      if (shareAdded.length > 0) {
+        lines.push(`新增共享 ${shareAdded.length} 个：`);
+        shareAdded.slice(0, 3).forEach(item => {
+          lines.push(`+ ${item.name}${item.detail ? ` (${item.detail})` : ''}`);
+        });
+        if (shareAdded.length > 3) {
+          lines.push(`  ...另有 ${shareAdded.length - 3} 个`);
+        }
+      }
+      if (shareRemoved.length > 0) {
+        lines.push(`移除共享 ${shareRemoved.length} 个：`);
+        shareRemoved.slice(0, 3).forEach(item => {
+          lines.push(`- ${item.name}`);
+        });
+        if (shareRemoved.length > 3) {
+          lines.push(`  ...另有 ${shareRemoved.length - 3} 个`);
+        }
+      }
+      lines.push('');
+    }
+
+    const changedItems = comparisonResult.changed.filter(item =>
+      item.category !== '磁盘' && item.category !== '内存'
+    );
+    if (changedItems.length > 0) {
+      lines.push('【配置变更】');
+      changedItems.slice(0, 5).forEach(item => {
+        lines.push(`* ${item.name}：${item.oldValue} → ${item.newValue}`);
+      });
+      if (changedItems.length > 5) {
+        lines.push(`  ...另有 ${changedItems.length - 5} 项配置变更`);
+      }
+      lines.push('');
+    }
+
+    lines.push('---');
+    lines.push(`变更汇总：新增 ${comparisonResult.added.length} 项，移除 ${comparisonResult.removed.length} 项，配置变更 ${comparisonResult.changed.length} 项`);
+
+    return lines.join('\n');
+  }, [comparisonResult, historicalProfile, profile]);
+
+  const handleCopySummary = useCallback(() => {
+    const summary = generateChangeSummary();
+    navigator.clipboard.writeText(summary).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [generateChangeSummary]);
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -273,6 +427,15 @@ export default function ComparePage() {
     reader.readAsText(file);
     event.target.value = '';
   }, [loadHistoricalProfile]);
+
+  const hasChanges = comparisonResult && (
+    comparisonResult.added.length > 0 ||
+    comparisonResult.removed.length > 0 ||
+    comparisonResult.changed.length > 0 ||
+    comparisonResult.diskChanges.added.length > 0 ||
+    comparisonResult.diskChanges.removed.length > 0 ||
+    comparisonResult.diskChanges.capacityChanged.length > 0
+  );
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -360,6 +523,45 @@ export default function ComparePage() {
 
           {comparisonResult && (
             <>
+              <div className="card-glow p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-primary" />
+                    <h3 className="text-lg font-semibold text-white">变更摘要</h3>
+                  </div>
+                  <button
+                    onClick={handleCopySummary}
+                    disabled={!hasChanges}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      copied
+                        ? 'bg-success/20 text-success'
+                        : 'bg-primary/20 hover:bg-primary/30 text-primary'
+                    }`}
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        已复制
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        复制到剪贴板
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="bg-slate-800/50 rounded-lg p-4 max-h-60 overflow-y-auto">
+                  {hasChanges ? (
+                    <pre className="text-sm text-slate-300 whitespace-pre-wrap font-mono">
+                      {generateChangeSummary()}
+                    </pre>
+                  ) : (
+                    <p className="text-slate-500 text-center py-4">暂无变更内容</p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-4 gap-4">
                 <div className="card-glow p-4 text-center border border-success/30">
                   <p className="text-2xl font-bold text-success mb-1">{comparisonResult.summary.hardwareChanges}</p>

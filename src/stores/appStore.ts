@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { SystemProfile, RiskItem, ComparisonResult, CollectionStatus, ReportConfig, DataSource } from '../types';
+import { SystemProfile, RiskItem, ComparisonResult, CollectionStatus, ReportConfig, DataSource, getDataSourceLabel, getDataSourceDescription } from '../types';
 import { createDemoProfile, createProfileFromImport, createDesktopProfile, isRunningInBrowser } from '../data/mockData';
 import { analyzeRisks } from '../services/analyzer';
 import { compareProfiles } from '../services/comparator';
@@ -19,7 +19,9 @@ interface AppStore {
   maintenanceSuggestions: string[];
 
   loadProfile: () => Promise<void>;
-  setDataSource: (source: DataSource) => void;
+  switchToDemo: () => void;
+  switchToDesktop: () => void;
+  importProfile: (profile: SystemProfile) => void;
   collectSoftware: () => Promise<void>;
   collectStartupItems: () => Promise<void>;
   collectPeripherals: () => Promise<void>;
@@ -30,8 +32,10 @@ interface AppStore {
   setReportNotes: (notes: string) => void;
   updateReportConfig: (config: Partial<ReportConfig>) => void;
   loadHistoricalProfile: (profile: SystemProfile) => void;
+  useImportedAsCurrent: () => void;
   clearHistoricalProfile: () => void;
   generateSuggestions: () => void;
+  exportCurrentProfile: () => void;
 }
 
 const defaultReportConfig: ReportConfig = {
@@ -84,16 +88,77 @@ export const useAppStore = create<AppStore>((set, get) => ({
     get().generateSuggestions();
   },
 
-  setDataSource: (source: DataSource) => {
-    set({ dataSource: source });
-    const { profile } = get();
-    if (profile) {
-      const updatedProfile = { ...profile, dataSource: source };
+  switchToDemo: () => {
+    const profile = createDemoProfile();
+    set({
+      profile,
+      currentProfile: profile,
+      dataSource: 'demo',
+      historicalProfile: null,
+      comparisonResult: null,
+      lastUpdate: new Date().toLocaleString('zh-CN'),
+      risks: analyzeRisks(profile),
+      collectionStatus: {
+        software: 'idle',
+        startupItems: 'idle',
+        peripherals: 'idle',
+        shares: 'idle',
+        users: 'idle',
+        loginRecords: 'idle'
+      }
+    });
+    get().generateSuggestions();
+  },
+
+  switchToDesktop: () => {
+    if (isRunningInBrowser()) {
+      const profile = createDemoProfile();
       set({
-        profile: updatedProfile,
-        currentProfile: updatedProfile
+        profile,
+        currentProfile: profile,
+        dataSource: 'desktop',
+        lastUpdate: new Date().toLocaleString('zh-CN'),
+        risks: analyzeRisks(profile)
+      });
+    } else {
+      const profile = createDesktopProfile(get().profile);
+      set({
+        profile,
+        currentProfile: profile,
+        dataSource: 'desktop',
+        lastUpdate: new Date().toLocaleString('zh-CN'),
+        risks: analyzeRisks(profile)
       });
     }
+    get().generateSuggestions();
+  },
+
+  importProfile: (importedProfile: SystemProfile) => {
+    const profile = createProfileFromImport(importedProfile);
+    const newReportConfig = { ...defaultReportConfig };
+
+    if (importedProfile.reportConfig) {
+      newReportConfig.template = importedProfile.reportConfig.template || 'standard';
+      newReportConfig.modules = importedProfile.reportConfig.modules || ['system', 'risks', 'suggestions'];
+      newReportConfig.engineer = importedProfile.reportConfig.engineer || '维护工程师';
+      newReportConfig.processStatus = importedProfile.reportConfig.processStatus || 'pending';
+      newReportConfig.notes = importedProfile.reportConfig.notes || '';
+      newReportConfig.includeRisks = importedProfile.reportConfig.includeRisks ?? true;
+      newReportConfig.includeSuggestions = importedProfile.reportConfig.includeSuggestions ?? true;
+      newReportConfig.includeNotes = importedProfile.reportConfig.includeNotes ?? true;
+    }
+
+    set({
+      profile,
+      currentProfile: profile,
+      dataSource: 'imported',
+      historicalProfile: null,
+      comparisonResult: null,
+      lastUpdate: new Date(profile.profileTime).toLocaleString('zh-CN'),
+      risks: analyzeRisks(profile),
+      reportConfig: newReportConfig
+    });
+    get().generateSuggestions();
   },
 
   collectSoftware: async () => {
@@ -304,6 +369,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  useImportedAsCurrent: () => {
+    const { historicalProfile, profile } = get();
+    if (historicalProfile && profile) {
+      const result = compareProfiles(profile, historicalProfile);
+      set({
+        historicalProfile: profile,
+        currentProfile: historicalProfile,
+        comparisonResult: result
+      });
+    }
+  },
+
   clearHistoricalProfile: () => {
     set({
       historicalProfile: null,
@@ -315,30 +392,58 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { risks } = get();
     const suggestions: string[] = [];
 
-    const highDiskRisks = risks.filter(r => r.type === 'disk-space' && r.severity === 'high');
-    const mediumDiskRisks = risks.filter(r => r.type === 'disk-space' && r.severity === 'medium');
+    const highRisks = risks.filter(r => r.severity === 'high');
+    const mediumRisks = risks.filter(r => r.severity === 'medium');
+    const lowRisks = risks.filter(r => r.severity === 'low');
 
-    if (highDiskRisks.length > 0) {
-      suggestions.push('【紧急】存在高危磁盘空间不足问题，建议立即清理磁盘或扩展存储');
-    }
-    if (mediumDiskRisks.length > 0) {
-      suggestions.push('【重要】部分磁盘空间接近警戒线，建议及时清理不必要的文件');
-    }
-    if (risks.some(r => r.type === 'startup' && r.severity === 'high')) {
-      suggestions.push('【紧急】检测到高风险启动项，建议禁用可疑程序');
-    } else if (risks.some(r => r.type === 'startup')) {
-      suggestions.push('检查并禁用可疑的启动项，提升系统启动速度');
-    }
-    if (risks.some(r => r.type === 'outdated-software')) {
-      suggestions.push('更新长期未更新的软件，确保安全补丁最新');
-    }
-    if (risks.some(r => r.type === 'open-share')) {
-      suggestions.push('审查共享文件夹权限，关闭非必要的网络共享');
-    }
+    highRisks.forEach(risk => {
+      suggestions.push(`【高危】${risk.title}：${risk.description}`);
+    });
+
+    mediumRisks.forEach(risk => {
+      suggestions.push(`【中危】${risk.title}：${risk.description}`);
+    });
+
+    lowRisks.forEach(risk => {
+      suggestions.push(`【低危】${risk.title}：${risk.description}`);
+    });
+
     if (suggestions.length === 0) {
       suggestions.push('系统状态良好，建议保持定期维护习惯');
     }
 
     set({ maintenanceSuggestions: suggestions });
+  },
+
+  exportCurrentProfile: () => {
+    const { profile, reportConfig } = get();
+    if (!profile) return;
+
+    const exportData = {
+      ...profile,
+      dataSource: profile.dataSource || get().dataSource,
+      dataSourceLabel: getDataSourceLabel(profile.dataSource || get().dataSource),
+      dataSourceDescription: getDataSourceDescription(profile.dataSource || get().dataSource),
+      reportConfig: {
+        template: reportConfig.template,
+        modules: reportConfig.modules,
+        engineer: reportConfig.engineer,
+        processStatus: reportConfig.processStatus,
+        notes: reportConfig.notes,
+        includeRisks: reportConfig.includeRisks,
+        includeSuggestions: reportConfig.includeSuggestions,
+        includeNotes: reportConfig.includeNotes,
+        exportedAt: new Date().toISOString()
+      }
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `host-profile-${profile.hostname}-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 }));

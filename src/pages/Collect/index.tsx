@@ -1,3 +1,4 @@
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import {
   Database,
@@ -14,12 +15,12 @@ import {
   Loader2,
   AlertTriangle,
   AlertOctagon,
-  Database as DemoIcon,
   Upload,
-  MonitorCheck
+  MonitorCheck,
+  Monitor,
+  FileJson
 } from 'lucide-react';
-import { useEffect } from 'react';
-import { getDataSourceLabel, getDataSourceDescription } from '../../types';
+import { getDataSourceLabel, getDataSourceDescription, SystemProfile } from '../../types';
 
 type CollectionStatusType = 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
 
@@ -165,8 +166,16 @@ export default function CollectPage() {
     collectUsers,
     collectLoginRecords,
     collectAll,
-    dataSource
+    dataSource,
+    switchToDemo,
+    switchToDesktop,
+    importProfile,
+    exportCurrentProfile
   } = useAppStore();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [pendingImport, setPendingImport] = useState<SystemProfile | null>(null);
 
   useEffect(() => {
     if (!profile) {
@@ -174,23 +183,42 @@ export default function CollectPage() {
     }
   }, [profile]);
 
+  const handleImportFile = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string) as SystemProfile;
+        setPendingImport(data);
+        setShowImportConfirm(true);
+      } catch {
+        alert('无效的JSON文件格式');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }, []);
+
+  const confirmImport = () => {
+    if (pendingImport) {
+      importProfile(pendingImport);
+      setShowImportConfirm(false);
+      setPendingImport(null);
+    }
+  };
+
+  const cancelImport = () => {
+    setShowImportConfirm(false);
+    setPendingImport(null);
+  };
+
   const allCompleted = Object.values(collectionStatus).every(s => s === 'completed' || s === 'idle');
   const anyUnsupported = Object.values(collectionStatus).some(s => s === 'unsupported');
   const isDemo = dataSource === 'demo';
 
-  const handleExport = () => {
-    if (!profile) return;
-    const dataStr = JSON.stringify(profile, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `host-profile-${profile.hostname}-${new Date().toISOString().slice(0, 10)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const SourceIcon = dataSource === 'desktop' ? MonitorCheck : dataSource === 'imported' ? Upload : DemoIcon;
+  const SourceIcon = dataSource === 'desktop' ? MonitorCheck : dataSource === 'imported' ? Upload : Database;
   const sourceColor = dataSource === 'desktop' ? 'success' : dataSource === 'imported' ? 'primary' : 'warning';
 
   return (
@@ -206,7 +234,7 @@ export default function CollectPage() {
             <span className={`text-sm text-${sourceColor}`}>{getDataSourceLabel(dataSource)}</span>
           </div>
           <button
-            onClick={handleExport}
+            onClick={exportCurrentProfile}
             disabled={!profile}
             className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -215,6 +243,145 @@ export default function CollectPage() {
           </button>
         </div>
       </div>
+
+      <div className="card-glow p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Monitor className="w-5 h-5 text-primary" />
+          <h3 className="text-lg font-semibold text-white">选择数据来源</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={switchToDemo}
+            className={`p-4 rounded-xl border-2 transition-all text-left ${
+              dataSource === 'demo'
+                ? 'border-warning bg-warning/10'
+                : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                dataSource === 'demo' ? 'bg-warning/20' : 'bg-slate-700'
+              }`}>
+                <Database className={`w-5 h-5 ${dataSource === 'demo' ? 'text-warning' : 'text-slate-400'}`} />
+              </div>
+              <div>
+                <p className="text-white font-medium">浏览器演示</p>
+                <p className="text-xs text-slate-500">查看示例数据</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400">
+              在浏览器环境中查看模拟的主机画像数据，适合功能演示
+            </p>
+          </button>
+
+          <button
+            onClick={switchToDesktop}
+            className={`p-4 rounded-xl border-2 transition-all text-left ${
+              dataSource === 'desktop'
+                ? 'border-success bg-success/10'
+                : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                dataSource === 'desktop' ? 'bg-success/20' : 'bg-slate-700'
+              }`}>
+                <MonitorCheck className={`w-5 h-5 ${dataSource === 'desktop' ? 'text-success' : 'text-slate-400'}`} />
+              </div>
+              <div>
+                <p className="text-white font-medium">桌面采集</p>
+                <p className="text-xs text-slate-500">实时采集本机数据</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400">
+              采集当前电脑的系统信息，包括硬件、软件和外设等完整数据
+            </p>
+          </button>
+
+          <label
+            className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${
+              dataSource === 'imported'
+                ? 'border-primary bg-primary/10'
+                : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+            }`}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                dataSource === 'imported' ? 'bg-primary/20' : 'bg-slate-700'
+              }`}>
+                <Upload className={`w-5 h-5 ${dataSource === 'imported' ? 'text-primary' : 'text-slate-400'}`} />
+              </div>
+              <div>
+                <p className="text-white font-medium">导入档案</p>
+                <p className="text-xs text-slate-500">导入历史JSON档案</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400">
+              导入之前保存的主机画像档案，可用于对比分析
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleImportFile}
+              className="hidden"
+            />
+          </label>
+        </div>
+      </div>
+
+      {showImportConfirm && pendingImport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="card-glow p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                <FileJson className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">确认导入档案</h3>
+                <p className="text-sm text-slate-400">将使用导入的档案作为当前画像</p>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-slate-500">计算机名</p>
+                  <p className="text-white font-mono">{pendingImport.hostname}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">操作系统</p>
+                  <p className="text-white">{pendingImport.os.name}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">采集时间</p>
+                  <p className="text-white">{pendingImport.profileTime ? new Date(pendingImport.profileTime).toLocaleString('zh-CN') : '-'}</p>
+                </div>
+                <div>
+                  <p className="text-slate-500">数据来源</p>
+                  <p className="text-white">{getDataSourceLabel(pendingImport.dataSource || 'imported')}</p>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">
+              导入后，当前页面、首页、风险页和报告页将同步显示此档案的数据。是否确认导入？
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelImport}
+                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmImport}
+                className="flex-1 btn-primary"
+              >
+                确认导入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isDemo && (
         <div className="card-glow p-4 border border-danger/30 bg-danger/10">

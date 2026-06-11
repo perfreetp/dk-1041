@@ -22,10 +22,10 @@ import {
 } from 'lucide-react';
 import { formatBytes, getDataSourceLabel, getDataSourceDescription, ReportTemplate, ReportModule } from '../../types';
 
-const templateOptions: { value: ReportTemplate; label: string; description: string }[] = [
-  { value: 'simple', label: '简洁模板', description: '仅包含基本信息和高危风险' },
-  { value: 'standard', label: '标准模板', description: '包含完整信息和风险建议' },
-  { value: 'detailed', label: '详细模板', description: '包含所有详细信息和完整建议' }
+const templateOptions: { value: ReportTemplate; label: string; description: string; defaultModules: ReportModule[] }[] = [
+  { value: 'simple', label: '简洁模板', description: '仅包含基本信息和高危风险', defaultModules: ['system', 'risks'] },
+  { value: 'standard', label: '标准模板', description: '包含完整信息和风险建议', defaultModules: ['system', 'hardware', 'risks', 'suggestions'] },
+  { value: 'detailed', label: '详细模板', description: '包含所有详细信息和完整建议', defaultModules: ['system', 'hardware', 'software', 'risks', 'suggestions', 'notes'] }
 ];
 
 const moduleOptions: { value: ReportModule; label: string; icon: React.ReactNode }[] = [
@@ -62,6 +62,8 @@ export default function ReportPage() {
     if (!profile) return;
 
     const reportData = {
+      _version: '1.0',
+      _type: 'host-profile-report',
       reportInfo: {
         generatedAt: new Date().toISOString(),
         engineer: reportConfig.engineer,
@@ -69,6 +71,7 @@ export default function ReportPage() {
         processStatus: reportConfig.processStatus,
         dataSource: profile.dataSource,
         dataSourceLabel: getDataSourceLabel(profile.dataSource),
+        dataSourceDescription: getDataSourceDescription(profile.dataSource),
         template: reportConfig.template,
         modules: reportConfig.modules
       },
@@ -76,7 +79,16 @@ export default function ReportPage() {
       risks: reportConfig.modules.includes('risks') ? risks : [],
       suggestions: reportConfig.modules.includes('suggestions') ? maintenanceSuggestions : [],
       notes: reportConfig.notes,
-      reportConfig: reportConfig
+      reportConfig: {
+        template: reportConfig.template,
+        modules: reportConfig.modules,
+        engineer: reportConfig.engineer,
+        processStatus: reportConfig.processStatus,
+        notes: reportConfig.notes,
+        includeRisks: reportConfig.includeRisks,
+        includeSuggestions: reportConfig.includeSuggestions,
+        includeNotes: reportConfig.includeNotes
+      }
     };
 
     const dataStr = JSON.stringify(reportData, null, 2);
@@ -98,6 +110,13 @@ export default function ReportPage() {
       ? reportConfig.modules.filter(m => m !== module)
       : [...reportConfig.modules, module];
     updateReportConfig({ modules: newModules });
+  };
+
+  const handleTemplateChange = (template: ReportTemplate) => {
+    const templateOption = templateOptions.find(t => t.value === template);
+    if (templateOption) {
+      updateReportConfig({ template, modules: templateOption.defaultModules });
+    }
   };
 
   const highRisks = risks.filter(r => r.severity === 'high');
@@ -162,7 +181,7 @@ export default function ReportPage() {
                       name="template"
                       value={opt.value}
                       checked={reportConfig.template === opt.value}
-                      onChange={() => updateReportConfig({ template: opt.value })}
+                      onChange={() => handleTemplateChange(opt.value)}
                       className="sr-only"
                     />
                     <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
