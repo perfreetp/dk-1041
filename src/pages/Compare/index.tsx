@@ -9,9 +9,96 @@ import {
   Edit3,
   X,
   Monitor,
-  History
+  History,
+  HardDrive
 } from 'lucide-react';
 import { SystemProfile } from '../../types';
+import { formatBytes, bytesToGB } from '../../types';
+
+function DiskComparison({ changes }: { changes: {
+  added: { letter: string; label: string; total: number }[];
+  removed: { letter: string; label: string; total: number }[];
+  capacityChanged: { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[];
+} }) {
+  const { added, removed, capacityChanged } = changes;
+
+  if (added.length === 0 && removed.length === 0 && capacityChanged.length === 0) {
+    return (
+      <div className="text-center py-8 text-slate-500">
+        磁盘无变更
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {added.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-success flex items-center gap-2">
+            <Plus className="w-4 h-4" />
+            新增磁盘
+          </h4>
+          {added.map(disk => (
+            <div key={disk.letter} className="flex items-center gap-3 p-3 bg-success/10 border border-success/20 rounded-lg">
+              <HardDrive className="w-5 h-5 text-success" />
+              <div className="flex-1">
+                <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                <p className="text-sm text-slate-400">{formatBytes(disk.total)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {removed.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-danger flex items-center gap-2">
+            <Minus className="w-4 h-4" />
+            移除磁盘
+          </h4>
+          {removed.map(disk => (
+            <div key={disk.letter} className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/20 rounded-lg">
+              <HardDrive className="w-5 h-5 text-danger" />
+              <div className="flex-1">
+                <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                <p className="text-sm text-slate-400">{formatBytes(disk.total)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {capacityChanged.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-warning flex items-center gap-2">
+            <Edit3 className="w-4 h-4" />
+            容量变化
+          </h4>
+          {capacityChanged.map(change => (
+            <div key={change.disk} className="bg-warning/10 border border-warning/20 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <HardDrive className="w-5 h-5 text-warning" />
+                <span className="text-white font-medium">{change.disk}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-slate-800/50 rounded p-2">
+                  <p className="text-xs text-slate-500 mb-1">历史</p>
+                  <p className="text-sm text-slate-300">总量: {bytesToGB(change.oldTotal).toFixed(1)} GB</p>
+                  <p className="text-sm text-slate-400">可用: {bytesToGB(change.oldFree).toFixed(1)} GB</p>
+                </div>
+                <div className="bg-slate-800/50 rounded p-2">
+                  <p className="text-xs text-slate-500 mb-1">当前</p>
+                  <p className="text-sm text-slate-300">总量: {bytesToGB(change.newTotal).toFixed(1)} GB</p>
+                  <p className="text-sm text-slate-400">可用: {bytesToGB(change.newFree).toFixed(1)} GB</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ComparisonTable({ data, type }: { data: { category: string; name: string; value?: string }[]; type: 'added' | 'removed' }) {
   if (data.length === 0) {
@@ -223,6 +310,14 @@ export default function ComparePage() {
                   <p className="text-2xl font-bold text-warning mb-1">{comparisonResult.summary.configChanges}</p>
                   <p className="text-xs text-slate-400">配置变更</p>
                 </div>
+              </div>
+
+              <div className="card-glow p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <HardDrive className="w-5 h-5 text-primary" />
+                  <h3 className="text-lg font-semibold text-white">磁盘变更</h3>
+                </div>
+                <DiskComparison changes={comparisonResult.diskChanges} />
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

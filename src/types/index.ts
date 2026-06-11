@@ -91,6 +91,7 @@ export interface SystemProfile {
   users: UserAccount[];
   loginRecords: LoginRecord[];
   profileTime: string;
+  isDemo?: boolean;
 }
 
 export interface RiskItem {
@@ -107,6 +108,7 @@ export interface ComparisonItem {
   category: string;
   name: string;
   value?: string;
+  detail?: string;
 }
 
 export interface ChangedItem {
@@ -120,6 +122,11 @@ export interface ComparisonResult {
   added: ComparisonItem[];
   removed: ComparisonItem[];
   changed: ChangedItem[];
+  diskChanges: {
+    added: Disk[];
+    removed: Disk[];
+    capacityChanged: { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[];
+  };
   summary: {
     hardwareChanges: number;
     softwareAdded: number;
@@ -129,10 +136,27 @@ export interface ComparisonResult {
 }
 
 export interface CollectionStatus {
-  software: 'idle' | 'collecting' | 'completed' | 'error';
-  startupItems: 'idle' | 'collecting' | 'completed' | 'error';
-  peripherals: 'idle' | 'collecting' | 'completed' | 'error';
-  shares: 'idle' | 'collecting' | 'completed' | 'error';
-  users: 'idle' | 'collecting' | 'completed' | 'error';
-  loginRecords: 'idle' | 'collecting' | 'completed' | 'error';
+  software: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+  startupItems: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+  peripherals: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+  shares: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+  users: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+  loginRecords: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
+}
+
+export function formatBytes(bytes: number, decimals = 1): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const clampedI = Math.min(i, sizes.length - 1);
+  return parseFloat((bytes / Math.pow(k, clampedI)).toFixed(decimals)) + ' ' + sizes[clampedI];
+}
+
+export function bytesToGB(bytes: number): number {
+  return bytes / (1024 * 1024 * 1024);
+}
+
+export function bytesToMB(bytes: number): number {
+  return bytes / (1024 * 1024);
 }

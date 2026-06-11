@@ -9,20 +9,14 @@ import {
   Server,
   MemoryStick,
   Activity,
-  CircleDollarSign
+  CircleDollarSign,
+  AlertTriangle
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-
-function formatBytes(bytes: number, decimals = 1) {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
-}
+import { formatBytes, bytesToGB } from '../../types';
 
 export default function HomePage() {
-  const { profile, isLoading, loadProfile } = useAppStore();
+  const { profile, isLoading, loadProfile, isUnsupportedEnvironment } = useAppStore();
 
   useEffect(() => {
     loadProfile();
@@ -41,9 +35,9 @@ export default function HomePage() {
 
   const diskData = profile.disks.map(disk => ({
     name: disk.letter,
-    used: disk.used / 1024 / 1024,
-    free: disk.free / 1024 / 1024,
-    total: disk.total / 1024 / 1024
+    used: bytesToGB(disk.used),
+    free: bytesToGB(disk.free),
+    total: bytesToGB(disk.total)
   }));
 
   const memoryPercent = (profile.memory.used / profile.memory.total) * 100;
@@ -60,6 +54,35 @@ export default function HomePage() {
           <span>最后采集：{profile.profileTime ? new Date(profile.profileTime).toLocaleString('zh-CN') : '-'}</span>
         </div>
       </div>
+
+      {isUnsupportedEnvironment && (
+        <div className="card-glow p-4 border border-warning/30 bg-warning/10">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
+            <div>
+              <p className="text-warning font-medium">浏览器环境限制</p>
+              <p className="text-sm text-slate-400 mt-1">
+                当前运行在浏览器中，无法获取真实系统信息。以下显示的是演示数据。
+                请在 Electron/Tauri 等桌面应用中运行以获取真实数据。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {profile.isDemo && !isUnsupportedEnvironment && (
+        <div className="card-glow p-4 border border-primary/30 bg-primary/10">
+          <div className="flex items-center gap-3">
+            <Server className="w-5 h-5 text-primary flex-shrink-0" />
+            <div>
+              <p className="text-primary font-medium">演示数据</p>
+              <p className="text-sm text-slate-400 mt-1">
+                当前显示的数据为示例数据，实际系统信息需要在目标电脑上运行采集功能。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -111,8 +134,8 @@ export default function HomePage() {
                   <MemoryStick className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex items-end gap-2 mb-2">
-                  <p className="text-white font-medium">{formatBytes(profile.memory.used * 1024 * 1024)}</p>
-                  <p className="text-sm text-slate-400">/ {formatBytes(profile.memory.total * 1024 * 1024)}</p>
+                  <p className="text-white font-medium">{formatBytes(profile.memory.used)}</p>
+                  <p className="text-sm text-slate-400">/ {formatBytes(profile.memory.total)}</p>
                 </div>
                 <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                   <div
@@ -140,7 +163,7 @@ export default function HomePage() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={diskData} layout="vertical" barSize={32}>
-                  <XAxis type="number" tickFormatter={(v) => `${v}GB`} stroke="#64748b" fontSize={12} />
+                  <XAxis type="number" tickFormatter={(v) => `${v.toFixed(0)} GB`} stroke="#64748b" fontSize={12} />
                   <YAxis type="category" dataKey="name" stroke="#64748b" fontSize={14} width={50} />
                   <Tooltip
                     contentStyle={{

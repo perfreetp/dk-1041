@@ -1,11 +1,11 @@
-import { SystemProfile, RiskItem } from '../types';
+import { SystemProfile, RiskItem, bytesToGB } from '../types';
 
 export function analyzeRisks(profile: SystemProfile): RiskItem[] {
   const risks: RiskItem[] = [];
   const today = new Date();
 
   profile.disks.forEach((disk, index) => {
-    const freeGB = disk.free / 1024 / 1024;
+    const freeGB = bytesToGB(disk.free);
     const usedPercent = (disk.used / disk.total) * 100;
 
     if (freeGB < 10 || usedPercent > 90) {

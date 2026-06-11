@@ -1,9 +1,14 @@
-import { SystemProfile, ComparisonResult, ComparisonItem, ChangedItem } from '../types';
+import { SystemProfile, ComparisonResult, ComparisonItem, ChangedItem, Disk, bytesToGB } from '../types';
 
 export function compareProfiles(historical: SystemProfile, current: SystemProfile): ComparisonResult {
   const added: ComparisonItem[] = [];
   const removed: ComparisonItem[] = [];
   const changed: ChangedItem[] = [];
+  const diskChanges = {
+    added: [] as Disk[],
+    removed: [] as Disk[],
+    capacityChanged: [] as { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[]
+  };
   let hardwareChanges = 0;
   let softwareAdded = 0;
   let softwareRemoved = 0;
@@ -23,47 +28,47 @@ export function compareProfiles(historical: SystemProfile, current: SystemProfil
     changed.push({
       category: '硬件',
       name: '内存',
-      oldValue: `${historical.memory.total / 1024} GB`,
-      newValue: `${current.memory.total / 1024} GB`
+      oldValue: `${bytesToGB(historical.memory.total).toFixed(1)} GB`,
+      newValue: `${bytesToGB(current.memory.total).toFixed(1)} GB`
     });
     hardwareChanges++;
   }
 
-  const oldDiskCount = historical.disks.length;
-  const newDiskCount = current.disks.length;
-  if (oldDiskCount !== newDiskCount) {
-    if (newDiskCount > oldDiskCount) {
-      current.disks.slice(oldDiskCount).forEach(disk => {
-        added.push({
-          category: '硬件',
-          name: `磁盘${disk.letter}`,
-          value: `${disk.label} (${(disk.total / 1024 / 1024).toFixed(0)} GB)`
-        });
-      });
-    } else {
-      historical.disks.slice(newDiskCount).forEach(disk => {
-        removed.push({
-          category: '硬件',
-          name: `磁盘${disk.letter}`,
-          value: `${disk.label} (${(disk.total / 1024 / 1024).toFixed(0)} GB)`
-        });
-      });
-    }
-    hardwareChanges++;
-  }
+  const historicalDisksMap = new Map(historical.disks.map(d => [d.letter, d]));
+  const currentDisksMap = new Map(current.disks.map(d => [d.letter, d]));
 
-  historical.disks.forEach((oldDisk, index) => {
-    const newDisk = current.disks[index];
-    if (newDisk && oldDisk.used !== newDisk.used) {
-      changed.push({
-        category: '配置',
-        name: `磁盘${oldDisk.letter}使用量`,
-        oldValue: `${(oldDisk.used / 1024 / 1024).toFixed(0)} GB`,
-        newValue: `${(newDisk.used / 1024 / 1024).toFixed(0)} GB`
-      });
-      configChanges++;
+  current.disks.forEach(disk => {
+    if (!historicalDisksMap.has(disk.letter)) {
+      diskChanges.added.push(disk);
     }
   });
+
+  historical.disks.forEach(disk => {
+    if (!currentDisksMap.has(disk.letter)) {
+      diskChanges.removed.push(disk);
+    }
+  });
+
+  historical.disks.forEach(historicalDisk => {
+    const currentDisk = currentDisksMap.get(historicalDisk.letter);
+    if (currentDisk) {
+      if (historicalDisk.total !== currentDisk.total ||
+          historicalDisk.used !== currentDisk.used ||
+          historicalDisk.free !== currentDisk.free) {
+        diskChanges.capacityChanged.push({
+          disk: historicalDisk.letter,
+          oldTotal: historicalDisk.total,
+          newTotal: currentDisk.total,
+          oldFree: historicalDisk.free,
+          newFree: currentDisk.free
+        });
+      }
+    }
+  });
+
+  if (diskChanges.added.length > 0 || diskChanges.removed.length > 0 || diskChanges.capacityChanged.length > 0) {
+    hardwareChanges++;
+  }
 
   const oldSoftwareNames = new Set(historical.software.map(s => s.name));
   const newSoftwareNames = new Set(current.software.map(s => s.name));
@@ -118,6 +123,7 @@ export function compareProfiles(historical: SystemProfile, current: SystemProfil
     added,
     removed,
     changed,
+    diskChanges,
     summary: {
       hardwareChanges,
       softwareAdded,

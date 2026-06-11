@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { SystemProfile, RiskItem, ComparisonResult, CollectionStatus } from '../types';
-import { mockSystemProfile } from '../data/mockData';
+import { mockSystemProfile, isRunningInBrowser } from '../data/mockData';
 import { analyzeRisks } from '../services/analyzer';
 import { compareProfiles } from '../services/comparator';
 
@@ -8,6 +8,7 @@ interface AppStore {
   profile: SystemProfile | null;
   isLoading: boolean;
   lastUpdate: string | null;
+  isUnsupportedEnvironment: boolean;
   collectionStatus: CollectionStatus;
   collectionProgress: number;
   risks: RiskItem[];
@@ -35,6 +36,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   profile: null,
   isLoading: false,
   lastUpdate: null,
+  isUnsupportedEnvironment: false,
   collectionStatus: {
     software: 'idle',
     startupItems: 'idle',
@@ -54,18 +56,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadProfile: async () => {
     set({ isLoading: true });
     await new Promise(resolve => setTimeout(resolve, 800));
-    const profile = mockSystemProfile;
+
+    const isUnsupported = isRunningInBrowser();
+    const profile = { ...mockSystemProfile, isDemo: true };
+
     set({
       profile,
       currentProfile: profile,
       isLoading: false,
       lastUpdate: new Date().toLocaleString('zh-CN'),
-      risks: analyzeRisks(profile)
+      risks: analyzeRisks(profile),
+      isUnsupportedEnvironment: isUnsupported
     });
     get().generateSuggestions();
   },
 
   collectSoftware: async () => {
+    if (isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, software: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, software: 'collecting' }
     }));
@@ -81,6 +93,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   collectStartupItems: async () => {
+    if (!isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, startupItems: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, startupItems: 'collecting' }
     }));
@@ -96,6 +114,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   collectPeripherals: async () => {
+    if (isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, peripherals: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, peripherals: 'collecting' }
     }));
@@ -111,6 +135,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   collectShares: async () => {
+    if (!isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, shares: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, shares: 'collecting' }
     }));
@@ -126,6 +156,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   collectUsers: async () => {
+    if (isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, users: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, users: 'collecting' }
     }));
@@ -141,6 +177,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   collectLoginRecords: async () => {
+    if (!isRunningInBrowser()) {
+      set(state => ({
+        collectionStatus: { ...state.collectionStatus, loginRecords: 'unsupported' }
+      }));
+      return;
+    }
     set(state => ({
       collectionStatus: { ...state.collectionStatus, loginRecords: 'collecting' }
     }));

@@ -1,5 +1,8 @@
 import { SystemProfile } from '../types';
 
+const MB = 1024 * 1024;
+const GB = 1024 * 1024 * 1024;
+
 export const mockSystemProfile: SystemProfile = {
   hostname: 'OFFICE-PC-0427',
   os: {
@@ -13,19 +16,19 @@ export const mockSystemProfile: SystemProfile = {
     threads: 20
   },
   memory: {
-    total: 32768,
-    used: 18432,
+    total: 32 * GB,
+    used: 18 * GB,
     slots: [
-      { slot: 'DIMM_A1', size: 8192, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
-      { slot: 'DIMM_B1', size: 8192, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
-      { slot: 'DIMM_C1', size: 8192, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
-      { slot: 'DIMM_D1', size: 8192, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' }
+      { slot: 'DIMM_A1', size: 8 * GB, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
+      { slot: 'DIMM_B1', size: 8 * GB, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
+      { slot: 'DIMM_C1', size: 8 * GB, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' },
+      { slot: 'DIMM_D1', size: 8 * GB, type: 'DDR5', speed: 4800, manufacturer: 'Kingston' }
     ]
   },
   disks: [
-    { letter: 'C:', label: '系统盘', total: 512000, used: 387000, free: 125000, fileSystem: 'NTFS' },
-    { letter: 'D:', label: '数据盘', total: 1024000, used: 756000, free: 268000, fileSystem: 'NTFS' },
-    { letter: 'E:', label: '备份盘', total: 2048000, used: 1245000, free: 803000, fileSystem: 'NTFS' }
+    { letter: 'C:', label: '系统盘', total: 512 * GB, used: 387 * GB, free: 125 * GB, fileSystem: 'NTFS' },
+    { letter: 'D:', label: '数据盘', total: 1024 * GB, used: 756 * GB, free: 268 * GB, fileSystem: 'NTFS' },
+    { letter: 'E:', label: '备份盘', total: 2048 * GB, used: 1245 * GB, free: 803 * GB, fileSystem: 'NTFS' }
   ],
   network: [
     {
@@ -46,16 +49,16 @@ export const mockSystemProfile: SystemProfile = {
     }
   ],
   software: [
-    { id: '1', name: 'Microsoft Office 专业增强版 2021', version: '16.0.14332.20481', vendor: 'Microsoft Corporation', installDate: '2024-01-15', lastUpdate: '2024-02-12', size: 4500000 },
-    { id: '2', name: 'Google Chrome', version: '121.0.6167.184', vendor: 'Google LLC', installDate: '2023-08-20', lastUpdate: '2024-02-08', size: 250000 },
-    { id: '3', name: 'Adobe Acrobat Pro DC', version: '24.001.20604', vendor: 'Adobe Inc.', installDate: '2023-11-05', lastUpdate: '2023-11-28', size: 1200000 },
-    { id: '4', name: 'WinRAR 简体中文版', version: '7.00', vendor: 'win.rar GmbH', installDate: '2022-05-18', lastUpdate: '2023-06-15', size: 3500 },
-    { id: '5', name: '钉钉', version: '7.0.30.40600', vendor: '阿里巴巴', installDate: '2024-01-10', lastUpdate: '2024-02-10', size: 280000 },
-    { id: '6', name: '企业微信', version: '4.0.20.60218', vendor: '腾讯', installDate: '2023-09-12', lastUpdate: '2024-01-25', size: 320000 },
-    { id: '7', name: 'Visual Studio Code', version: '1.86.2', vendor: 'Microsoft Corporation', installDate: '2023-12-01', lastUpdate: '2024-02-05', size: 120000 },
-    { id: '8', name: '7-Zip', version: '23.01', vendor: 'Igor Pavlov', installDate: '2022-03-20', lastUpdate: '2023-08-10', size: 1800 },
-    { id: '9', name: 'Foxmail', version: '7.2.25.146', vendor: '腾讯', installDate: '2023-06-15', lastUpdate: '2024-01-18', size: 95000 },
-    { id: '10', name: '360安全卫士', version: '15.0.0.1203', vendor: '奇虎360', installDate: '2022-08-10', lastUpdate: '2024-02-01', size: 180000 }
+    { id: '1', name: 'Microsoft Office 专业增强版 2021', version: '16.0.14332.20481', vendor: 'Microsoft Corporation', installDate: '2024-01-15', lastUpdate: '2024-02-12', size: 4500 * MB },
+    { id: '2', name: 'Google Chrome', version: '121.0.6167.184', vendor: 'Google LLC', installDate: '2023-08-20', lastUpdate: '2024-02-08', size: 250 * MB },
+    { id: '3', name: 'Adobe Acrobat Pro DC', version: '24.001.20604', vendor: 'Adobe Inc.', installDate: '2023-11-05', lastUpdate: '2023-11-28', size: 1200 * MB },
+    { id: '4', name: 'WinRAR 简体中文版', version: '7.00', vendor: 'win.rar GmbH', installDate: '2022-05-18', lastUpdate: '2023-06-15', size: 3.5 * MB },
+    { id: '5', name: '钉钉', version: '7.0.30.40600', vendor: '阿里巴巴', installDate: '2024-01-10', lastUpdate: '2024-02-10', size: 280 * MB },
+    { id: '6', name: '企业微信', version: '4.0.20.60218', vendor: '腾讯', installDate: '2023-09-12', lastUpdate: '2024-01-25', size: 320 * MB },
+    { id: '7', name: 'Visual Studio Code', version: '1.86.2', vendor: 'Microsoft Corporation', installDate: '2023-12-01', lastUpdate: '2024-02-05', size: 120 * MB },
+    { id: '8', name: '7-Zip', version: '23.01', vendor: 'Igor Pavlov', installDate: '2022-03-20', lastUpdate: '2023-08-10', size: 2 * MB },
+    { id: '9', name: 'Foxmail', version: '7.2.25.146', vendor: '腾讯', installDate: '2023-06-15', lastUpdate: '2024-01-18', size: 95 * MB },
+    { id: '10', name: '360安全卫士', version: '15.0.0.1203', vendor: '奇虎360', installDate: '2022-08-10', lastUpdate: '2024-02-01', size: 180 * MB }
   ],
   startupItems: [
     { id: '1', name: 'ctfmon.exe', path: 'C:\\Windows\\System32\\ctfmon.exe', location: 'registry', enabled: true, publisher: 'Microsoft Corporation', signed: true },
@@ -89,7 +92,8 @@ export const mockSystemProfile: SystemProfile = {
     { id: '4', time: '2024-02-13 17:22:45', username: 'Admin', source: '192.168.1.100', type: 'domain' },
     { id: '5', time: '2024-02-13 08:35:18', username: 'Admin', source: 'LOCAL', type: 'local' }
   ],
-  profileTime: new Date().toISOString()
+  profileTime: new Date().toISOString(),
+  isDemo: true
 };
 
 export const mockHistoricalProfile: SystemProfile = {
@@ -97,8 +101,17 @@ export const mockHistoricalProfile: SystemProfile = {
   hostname: 'OFFICE-PC-0427',
   software: mockSystemProfile.software.filter((_, i) => i < 7),
   disks: [
-    { letter: 'C:', label: '系统盘', total: 512000, used: 320000, free: 192000, fileSystem: 'NTFS' },
-    { letter: 'D:', label: '数据盘', total: 1024000, used: 680000, free: 344000, fileSystem: 'NTFS' }
+    { letter: 'C:', label: '系统盘', total: 512 * GB, used: 320 * GB, free: 192 * GB, fileSystem: 'NTFS' },
+    { letter: 'D:', label: '数据盘', total: 1024 * GB, used: 680 * GB, free: 344 * GB, fileSystem: 'NTFS' }
   ],
-  profileTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  profileTime: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  isDemo: true
 };
+
+export function isRunningInBrowser(): boolean {
+  return typeof window !== 'undefined';
+}
+
+export function getSystemInfoUnsupportedMessage(): string {
+  return '当前运行环境为浏览器，无法直接获取系统信息。请在 Electron/Tauri 等桌面应用中运行以获取真实数据，或导入历史画像文件进行对比分析。';
+}

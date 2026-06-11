@@ -11,52 +11,78 @@ import {
   RefreshCw,
   CheckCircle2,
   Circle,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  AlertOctagon
 } from 'lucide-react';
 import { useEffect } from 'react';
+
+type CollectionStatusType = 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
 
 interface CollectionItemProps {
   title: string;
   icon: React.ElementType;
-  status: 'idle' | 'collecting' | 'completed' | 'error';
+  status: CollectionStatusType;
   onCollect: () => void;
   children?: React.ReactNode;
 }
 
 function CollectionItem({ title, icon: Icon, status, onCollect, children }: CollectionItemProps) {
+  const getStatusText = (s: CollectionStatusType) => {
+    switch (s) {
+      case 'idle': return '待采集';
+      case 'collecting': return '采集中...';
+      case 'completed': return '已完成';
+      case 'error': return '采集失败';
+      case 'unsupported': return '环境不支持';
+      default: return '待采集';
+    }
+  };
+
+  const getIconColor = (s: CollectionStatusType) => {
+    switch (s) {
+      case 'completed': return 'text-success';
+      case 'collecting': return 'text-primary animate-pulse';
+      case 'unsupported': return 'text-warning';
+      case 'error': return 'text-danger';
+      default: return 'text-slate-400';
+    }
+  };
+
+  const getBgColor = (s: CollectionStatusType) => {
+    switch (s) {
+      case 'completed': return 'bg-success/20';
+      case 'collecting': return 'bg-primary/20';
+      case 'unsupported': return 'bg-warning/20';
+      case 'error': return 'bg-danger/20';
+      default: return 'bg-slate-700/50';
+    }
+  };
+
   return (
-    <div className="card-glow p-6">
+    <div className={`card-glow p-6 ${status === 'unsupported' ? 'opacity-75' : ''}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            status === 'completed' ? 'bg-success/20' :
-            status === 'collecting' ? 'bg-primary/20' :
-            'bg-slate-700/50'
-          }`}>
-            <Icon className={`w-5 h-5 ${
-              status === 'completed' ? 'text-success' :
-              status === 'collecting' ? 'text-primary animate-pulse' :
-              'text-slate-400'
-            }`} />
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getBgColor(status)}`}>
+            <Icon className={`w-5 h-5 ${getIconColor(status)}`} />
           </div>
           <div>
             <h3 className="text-white font-medium">{title}</h3>
             <p className="text-xs text-slate-500">
-              {status === 'idle' && '待采集'}
-              {status === 'collecting' && '采集中...'}
-              {status === 'completed' && '已完成'}
-              {status === 'error' && '采集失败'}
+              {getStatusText(status)}
             </p>
           </div>
         </div>
         <button
           onClick={onCollect}
-          disabled={status === 'collecting'}
+          disabled={status === 'collecting' || status === 'unsupported'}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
             status === 'completed'
               ? 'bg-success/20 text-success hover:bg-success/30'
               : status === 'collecting'
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              : status === 'unsupported'
+              ? 'bg-warning/20 text-warning cursor-not-allowed'
               : 'btn-primary'
           }`}
         >
@@ -69,6 +95,11 @@ function CollectionItem({ title, icon: Icon, status, onCollect, children }: Coll
             <span className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" />
               已采集
+            </span>
+          ) : status === 'unsupported' ? (
+            <span className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4" />
+              不支持
             </span>
           ) : (
             <span className="flex items-center gap-2">
@@ -87,7 +118,7 @@ function DataTable({ data, columns }: { data: Record<string, unknown>[]; columns
   if (!data || data.length === 0) {
     return (
       <div className="text-center py-8 text-slate-500">
-        暂无数据，请先采集
+        暂无数据
       </div>
     );
   }
@@ -129,7 +160,8 @@ export default function CollectPage() {
     collectShares,
     collectUsers,
     collectLoginRecords,
-    collectAll
+    collectAll,
+    isUnsupportedEnvironment
   } = useAppStore();
 
   useEffect(() => {
@@ -139,6 +171,7 @@ export default function CollectPage() {
   }, [profile]);
 
   const allCompleted = Object.values(collectionStatus).every(s => s === 'completed' || s === 'idle');
+  const anyUnsupported = Object.values(collectionStatus).some(s => s === 'unsupported');
 
   const handleExport = () => {
     if (!profile) return;
@@ -171,6 +204,21 @@ export default function CollectPage() {
         </div>
       </div>
 
+      {isUnsupportedEnvironment && (
+        <div className="card-glow p-4 border border-danger/30 bg-danger/10">
+          <div className="flex items-center gap-3">
+            <AlertOctagon className="w-5 h-5 text-danger flex-shrink-0" />
+            <div>
+              <p className="text-danger font-medium">浏览器环境限制</p>
+              <p className="text-sm text-slate-400 mt-1">
+                当前运行在浏览器中，无法直接获取系统信息。采集功能需要您在 Electron/Tauri 等桌面应用中运行。
+                您可以导入之前保存的历史画像文件进行对比分析。
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {collectionProgress > 0 && collectionProgress < 100 && (
         <div className="card-glow p-4">
           <div className="flex items-center justify-between mb-2">
@@ -190,9 +238,9 @@ export default function CollectPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              allCompleted ? 'bg-success/20' : 'bg-primary/20'
+              anyUnsupported ? 'bg-warning/20' : allCompleted ? 'bg-success/20' : 'bg-primary/20'
             }`}>
-              <Database className={`w-6 h-6 ${allCompleted ? 'text-success' : 'text-primary'}`} />
+              <Database className={`w-6 h-6 ${anyUnsupported ? 'text-warning' : allCompleted ? 'text-success' : 'text-primary'}`} />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">一键全量采集</h2>
@@ -201,17 +249,22 @@ export default function CollectPage() {
           </div>
           <button
             onClick={collectAll}
-            disabled={collectionProgress > 0 && collectionProgress < 100}
-            className="btn-primary flex items-center gap-2"
+            disabled={collectionProgress > 0 && collectionProgress < 100 || isUnsupportedEnvironment}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {collectionProgress > 0 && collectionProgress < 100 ? (
+            {isUnsupportedEnvironment ? (
+              <>
+                <AlertTriangle className="w-4 h-4" />
+                环境不支持
+              </>
+            ) : collectionProgress > 0 && collectionProgress < 100 ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
                 采集中...
               </>
             ) : (
               <>
-                <Rocket className="w-4 h-4" />
+                <RefreshCw className="w-4 h-4" />
                 开始采集
               </>
             )}
