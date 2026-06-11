@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { SystemProfile, RiskItem, ComparisonResult, CollectionStatus } from '../types';
-import { mockSystemProfile, isRunningInBrowser } from '../data/mockData';
+import { SystemProfile, RiskItem, ComparisonResult, CollectionStatus, ReportConfig, DataSource } from '../types';
+import { createDemoProfile, createProfileFromImport, createDesktopProfile, isRunningInBrowser } from '../data/mockData';
 import { analyzeRisks } from '../services/analyzer';
 import { compareProfiles } from '../services/comparator';
 
@@ -8,17 +8,18 @@ interface AppStore {
   profile: SystemProfile | null;
   isLoading: boolean;
   lastUpdate: string | null;
-  isUnsupportedEnvironment: boolean;
+  dataSource: DataSource;
   collectionStatus: CollectionStatus;
   collectionProgress: number;
   risks: RiskItem[];
   currentProfile: SystemProfile | null;
   historicalProfile: SystemProfile | null;
   comparisonResult: ComparisonResult | null;
-  reportNotes: string;
+  reportConfig: ReportConfig;
   maintenanceSuggestions: string[];
 
   loadProfile: () => Promise<void>;
+  setDataSource: (source: DataSource) => void;
   collectSoftware: () => Promise<void>;
   collectStartupItems: () => Promise<void>;
   collectPeripherals: () => Promise<void>;
@@ -27,16 +28,28 @@ interface AppStore {
   collectLoginRecords: () => Promise<void>;
   collectAll: () => Promise<void>;
   setReportNotes: (notes: string) => void;
+  updateReportConfig: (config: Partial<ReportConfig>) => void;
   loadHistoricalProfile: (profile: SystemProfile) => void;
   clearHistoricalProfile: () => void;
   generateSuggestions: () => void;
 }
 
+const defaultReportConfig: ReportConfig = {
+  template: 'standard',
+  modules: ['system', 'risks', 'suggestions'],
+  includeRisks: true,
+  includeSuggestions: true,
+  includeNotes: true,
+  engineer: '维护工程师',
+  processStatus: 'pending',
+  notes: ''
+};
+
 export const useAppStore = create<AppStore>((set, get) => ({
   profile: null,
   isLoading: false,
   lastUpdate: null,
-  isUnsupportedEnvironment: false,
+  dataSource: 'demo',
   collectionStatus: {
     software: 'idle',
     startupItems: 'idle',
@@ -50,15 +63,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
   currentProfile: null,
   historicalProfile: null,
   comparisonResult: null,
-  reportNotes: '',
+  reportConfig: defaultReportConfig,
   maintenanceSuggestions: [],
 
   loadProfile: async () => {
     set({ isLoading: true });
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const isUnsupported = isRunningInBrowser();
-    const profile = { ...mockSystemProfile, isDemo: true };
+    const profile = createDemoProfile();
+    const source: DataSource = isRunningInBrowser() ? 'demo' : 'desktop';
 
     set({
       profile,
@@ -66,9 +79,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
       isLoading: false,
       lastUpdate: new Date().toLocaleString('zh-CN'),
       risks: analyzeRisks(profile),
-      isUnsupportedEnvironment: isUnsupported
+      dataSource: source
     });
     get().generateSuggestions();
+  },
+
+  setDataSource: (source: DataSource) => {
+    set({ dataSource: source });
+    const { profile } = get();
+    if (profile) {
+      const updatedProfile = { ...profile, dataSource: source };
+      set({
+        profile: updatedProfile,
+        currentProfile: updatedProfile
+      });
+    }
   },
 
   collectSoftware: async () => {
@@ -82,18 +107,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, software: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 1500));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        software: mockSystemProfile.software,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, software: 'completed' }
+      profile: { ...desktopProfile, software: createDemoProfile().software },
+      currentProfile: { ...desktopProfile, software: createDemoProfile().software },
+      collectionStatus: { ...state.collectionStatus, software: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
   collectStartupItems: async () => {
-    if (!isRunningInBrowser()) {
+    if (isRunningInBrowser()) {
       set(state => ({
         collectionStatus: { ...state.collectionStatus, startupItems: 'unsupported' }
       }));
@@ -103,13 +129,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, startupItems: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 1200));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        startupItems: mockSystemProfile.startupItems,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, startupItems: 'completed' }
+      profile: { ...desktopProfile, startupItems: createDemoProfile().startupItems },
+      currentProfile: { ...desktopProfile, startupItems: createDemoProfile().startupItems },
+      collectionStatus: { ...state.collectionStatus, startupItems: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
@@ -124,18 +151,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, peripherals: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        peripherals: mockSystemProfile.peripherals,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, peripherals: 'completed' }
+      profile: { ...desktopProfile, peripherals: createDemoProfile().peripherals },
+      currentProfile: { ...desktopProfile, peripherals: createDemoProfile().peripherals },
+      collectionStatus: { ...state.collectionStatus, peripherals: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
   collectShares: async () => {
-    if (!isRunningInBrowser()) {
+    if (isRunningInBrowser()) {
       set(state => ({
         collectionStatus: { ...state.collectionStatus, shares: 'unsupported' }
       }));
@@ -145,13 +173,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, shares: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 800));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        shares: mockSystemProfile.shares,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, shares: 'completed' }
+      profile: { ...desktopProfile, shares: createDemoProfile().shares },
+      currentProfile: { ...desktopProfile, shares: createDemoProfile().shares },
+      collectionStatus: { ...state.collectionStatus, shares: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
@@ -166,18 +195,19 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, users: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        users: mockSystemProfile.users,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, users: 'completed' }
+      profile: { ...desktopProfile, users: createDemoProfile().users },
+      currentProfile: { ...desktopProfile, users: createDemoProfile().users },
+      collectionStatus: { ...state.collectionStatus, users: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
   collectLoginRecords: async () => {
-    if (!isRunningInBrowser()) {
+    if (isRunningInBrowser()) {
       set(state => ({
         collectionStatus: { ...state.collectionStatus, loginRecords: 'unsupported' }
       }));
@@ -187,13 +217,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       collectionStatus: { ...state.collectionStatus, loginRecords: 'collecting' }
     }));
     await new Promise(resolve => setTimeout(resolve, 900));
+
+    const currentProfile = get().profile;
+    const desktopProfile = createDesktopProfile(currentProfile);
     set(state => ({
-      profile: state.profile ? {
-        ...state.profile,
-        loginRecords: mockSystemProfile.loginRecords,
-        profileTime: new Date().toISOString()
-      } : null,
-      collectionStatus: { ...state.collectionStatus, loginRecords: 'completed' }
+      profile: { ...desktopProfile, loginRecords: createDemoProfile().loginRecords },
+      currentProfile: { ...desktopProfile, loginRecords: createDemoProfile().loginRecords },
+      collectionStatus: { ...state.collectionStatus, loginRecords: 'completed' },
+      dataSource: 'desktop'
     }));
   },
 
@@ -210,6 +241,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
       collectionProgress: 0
     });
+
+    if (isRunningInBrowser()) {
+      set({
+        collectionStatus: {
+          software: 'unsupported',
+          startupItems: 'unsupported',
+          peripherals: 'unsupported',
+          shares: 'unsupported',
+          users: 'unsupported',
+          loginRecords: 'unsupported'
+        }
+      });
+      return;
+    }
 
     await collectSoftware();
     set({ collectionProgress: 16 });
@@ -235,16 +280,26 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   setReportNotes: (notes: string) => {
-    set({ reportNotes: notes });
+    set(state => ({
+      reportConfig: { ...state.reportConfig, notes }
+    }));
+  },
+
+  updateReportConfig: (config: Partial<ReportConfig>) => {
+    set(state => ({
+      reportConfig: { ...state.reportConfig, ...config }
+    }));
   },
 
   loadHistoricalProfile: (profile: SystemProfile) => {
+    const importedProfile = createProfileFromImport(profile);
     const currentProfile = get().currentProfile || get().profile;
     if (currentProfile) {
-      const result = compareProfiles(profile, currentProfile);
+      const result = compareProfiles(importedProfile, currentProfile);
       set({
-        historicalProfile: profile,
-        comparisonResult: result
+        historicalProfile: importedProfile,
+        comparisonResult: result,
+        dataSource: 'imported'
       });
     }
   },
@@ -260,10 +315,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const { risks } = get();
     const suggestions: string[] = [];
 
-    if (risks.some(r => r.type === 'disk-space' && r.severity === 'high')) {
-      suggestions.push('建议清理磁盘空间，删除临时文件和不必要的应用程序');
+    const highDiskRisks = risks.filter(r => r.type === 'disk-space' && r.severity === 'high');
+    const mediumDiskRisks = risks.filter(r => r.type === 'disk-space' && r.severity === 'medium');
+
+    if (highDiskRisks.length > 0) {
+      suggestions.push('【紧急】存在高危磁盘空间不足问题，建议立即清理磁盘或扩展存储');
     }
-    if (risks.some(r => r.type === 'startup')) {
+    if (mediumDiskRisks.length > 0) {
+      suggestions.push('【重要】部分磁盘空间接近警戒线，建议及时清理不必要的文件');
+    }
+    if (risks.some(r => r.type === 'startup' && r.severity === 'high')) {
+      suggestions.push('【紧急】检测到高风险启动项，建议禁用可疑程序');
+    } else if (risks.some(r => r.type === 'startup')) {
       suggestions.push('检查并禁用可疑的启动项，提升系统启动速度');
     }
     if (risks.some(r => r.type === 'outdated-software')) {

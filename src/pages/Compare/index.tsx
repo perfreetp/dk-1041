@@ -12,17 +12,30 @@ import {
   History,
   HardDrive
 } from 'lucide-react';
-import { SystemProfile } from '../../types';
-import { formatBytes, bytesToGB } from '../../types';
+import { SystemProfile, bytesToGB } from '../../types';
 
-function DiskComparison({ changes }: { changes: {
-  added: { letter: string; label: string; total: number }[];
-  removed: { letter: string; label: string; total: number }[];
-  capacityChanged: { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[];
-} }) {
+function DiskComparison({ changes }: {
+  changes: {
+    added: { letter: string; label: string; total: number; used: number; free: number }[];
+    removed: { letter: string; label: string; total: number; used: number; free: number }[];
+    capacityChanged: {
+      disk: string;
+      oldTotal: number;
+      newTotal: number;
+      oldFree: number;
+      newFree: number;
+      oldUsed: number;
+      newUsed: number;
+      oldUsedPercent: number;
+      newUsedPercent: number;
+    }[];
+  };
+}) {
   const { added, removed, capacityChanged } = changes;
 
-  if (added.length === 0 && removed.length === 0 && capacityChanged.length === 0) {
+  const hasAnyChanges = added.length > 0 || removed.length > 0 || capacityChanged.length > 0;
+
+  if (!hasAnyChanges) {
     return (
       <div className="text-center py-8 text-slate-500">
         磁盘无变更
@@ -31,69 +44,123 @@ function DiskComparison({ changes }: { changes: {
   }
 
   return (
-    <div className="space-y-4">
-      {added.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-success flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            新增磁盘
+    <div className="space-y-6">
+      {(added.length > 0 || removed.length > 0) && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-slate-300 border-b border-slate-700 pb-2">
+            新增 / 移除磁盘
           </h4>
-          {added.map(disk => (
-            <div key={disk.letter} className="flex items-center gap-3 p-3 bg-success/10 border border-success/20 rounded-lg">
-              <HardDrive className="w-5 h-5 text-success" />
-              <div className="flex-1">
-                <p className="text-white font-medium">{disk.letter} {disk.label}</p>
-                <p className="text-sm text-slate-400">{formatBytes(disk.total)}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {added.map(disk => (
+              <div key={`add-${disk.letter}`} className="flex items-center gap-3 p-3 bg-success/10 border border-success/30 rounded-lg">
+                <div className="w-8 h-8 rounded-lg bg-success/20 flex items-center justify-center">
+                  <Plus className="w-4 h-4 text-success" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                  <p className="text-sm text-success">新增 · {bytesToGB(disk.total).toFixed(0)} GB</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {removed.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-danger flex items-center gap-2">
-            <Minus className="w-4 h-4" />
-            移除磁盘
-          </h4>
-          {removed.map(disk => (
-            <div key={disk.letter} className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/20 rounded-lg">
-              <HardDrive className="w-5 h-5 text-danger" />
-              <div className="flex-1">
-                <p className="text-white font-medium">{disk.letter} {disk.label}</p>
-                <p className="text-sm text-slate-400">{formatBytes(disk.total)}</p>
+            ))}
+            {removed.map(disk => (
+              <div key={`remove-${disk.letter}`} className="flex items-center gap-3 p-3 bg-danger/10 border border-danger/30 rounded-lg">
+                <div className="w-8 h-8 rounded-lg bg-danger/20 flex items-center justify-center">
+                  <Minus className="w-4 h-4 text-danger" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{disk.letter} {disk.label}</p>
+                  <p className="text-sm text-danger">移除 · {bytesToGB(disk.total).toFixed(0)} GB</p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
       {capacityChanged.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-warning flex items-center gap-2">
-            <Edit3 className="w-4 h-4" />
-            容量变化
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-slate-300 border-b border-slate-700 pb-2">
+            容量变化（按盘符）
           </h4>
-          {capacityChanged.map(change => (
-            <div key={change.disk} className="bg-warning/10 border border-warning/20 rounded-lg p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <HardDrive className="w-5 h-5 text-warning" />
-                <span className="text-white font-medium">{change.disk}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-slate-800/50 rounded p-2">
-                  <p className="text-xs text-slate-500 mb-1">历史</p>
-                  <p className="text-sm text-slate-300">总量: {bytesToGB(change.oldTotal).toFixed(1)} GB</p>
-                  <p className="text-sm text-slate-400">可用: {bytesToGB(change.oldFree).toFixed(1)} GB</p>
+          <div className="space-y-3">
+            {capacityChanged.map(change => (
+              <div key={change.disk} className="bg-warning/10 border border-warning/20 rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                    <HardDrive className="w-5 h-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-white font-semibold">{change.disk}</p>
+                    <p className="text-xs text-slate-400">磁盘容量与使用情况变化</p>
+                  </div>
                 </div>
-                <div className="bg-slate-800/50 rounded p-2">
-                  <p className="text-xs text-slate-500 mb-1">当前</p>
-                  <p className="text-sm text-slate-300">总量: {bytesToGB(change.newTotal).toFixed(1)} GB</p>
-                  <p className="text-sm text-slate-400">可用: {bytesToGB(change.newFree).toFixed(1)} GB</p>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">总容量</p>
+                    <p className="text-sm text-slate-300 font-mono">
+                      {bytesToGB(change.oldTotal).toFixed(0)} → {bytesToGB(change.newTotal).toFixed(0)} GB
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">已用空间</p>
+                    <p className="text-sm text-slate-300 font-mono">
+                      {bytesToGB(change.oldUsed).toFixed(0)} → {bytesToGB(change.newUsed).toFixed(0)} GB
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">可用空间</p>
+                    <p className="text-sm text-slate-300 font-mono">
+                      {bytesToGB(change.oldFree).toFixed(0)} → {bytesToGB(change.newFree).toFixed(0)} GB
+                    </p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg p-3">
+                    <p className="text-xs text-slate-500 mb-1">使用率</p>
+                    <p className={`text-sm font-mono ${
+                      change.newUsedPercent > change.oldUsedPercent ? 'text-danger' :
+                      change.newUsedPercent < change.oldUsedPercent ? 'text-success' : 'text-slate-300'
+                    }`}>
+                      {change.oldUsedPercent.toFixed(1)}% → {change.newUsedPercent.toFixed(1)}%
+                      {change.newUsedPercent > change.oldUsedPercent ? ' ↑' :
+                       change.newUsedPercent < change.oldUsedPercent ? ' ↓' : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500">历史</span>
+                      <span className="text-slate-400">{change.oldUsedPercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${Math.min(change.oldUsedPercent, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500">当前</span>
+                      <span className={change.newUsedPercent > 90 ? 'text-danger' : 'text-slate-400'}>
+                        {change.newUsedPercent.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          change.newUsedPercent > 90 ? 'bg-danger' :
+                          change.newUsedPercent > 80 ? 'bg-warning' : 'bg-success'
+                        }`}
+                        style={{ width: `${Math.min(change.newUsedPercent, 100)}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -315,7 +382,7 @@ export default function ComparePage() {
               <div className="card-glow p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <HardDrive className="w-5 h-5 text-primary" />
-                  <h3 className="text-lg font-semibold text-white">磁盘变更</h3>
+                  <h3 className="text-lg font-semibold text-white">磁盘变更详情</h3>
                 </div>
                 <DiskComparison changes={comparisonResult.diskChanges} />
               </div>

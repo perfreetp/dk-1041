@@ -1,3 +1,5 @@
+export type DataSource = 'demo' | 'desktop' | 'imported';
+
 export interface MemorySlot {
   slot: string;
   size: number;
@@ -91,7 +93,8 @@ export interface SystemProfile {
   users: UserAccount[];
   loginRecords: LoginRecord[];
   profileTime: string;
-  isDemo?: boolean;
+  dataSource: DataSource;
+  sourceDescription?: string;
 }
 
 export interface RiskItem {
@@ -118,6 +121,18 @@ export interface ChangedItem {
   newValue: string;
 }
 
+export interface DiskChange {
+  disk: string;
+  oldTotal: number;
+  newTotal: number;
+  oldFree: number;
+  newFree: number;
+  oldUsed: number;
+  newUsed: number;
+  oldUsedPercent: number;
+  newUsedPercent: number;
+}
+
 export interface ComparisonResult {
   added: ComparisonItem[];
   removed: ComparisonItem[];
@@ -125,7 +140,7 @@ export interface ComparisonResult {
   diskChanges: {
     added: Disk[];
     removed: Disk[];
-    capacityChanged: { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[];
+    capacityChanged: DiskChange[];
   };
   summary: {
     hardwareChanges: number;
@@ -144,6 +159,20 @@ export interface CollectionStatus {
   loginRecords: 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
 }
 
+export type ReportTemplate = 'standard' | 'detailed' | 'simple';
+export type ReportModule = 'system' | 'software' | 'hardware' | 'risks' | 'suggestions' | 'notes';
+
+export interface ReportConfig {
+  template: ReportTemplate;
+  modules: ReportModule[];
+  includeRisks: boolean;
+  includeSuggestions: boolean;
+  includeNotes: boolean;
+  engineer: string;
+  processStatus: 'pending' | 'processing' | 'completed';
+  notes: string;
+}
+
 export function formatBytes(bytes: number, decimals = 1): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -159,4 +188,22 @@ export function bytesToGB(bytes: number): number {
 
 export function bytesToMB(bytes: number): number {
   return bytes / (1024 * 1024);
+}
+
+export function getDataSourceLabel(source: DataSource): string {
+  switch (source) {
+    case 'demo': return '浏览器演示';
+    case 'desktop': return '桌面采集';
+    case 'imported': return '导入档案';
+    default: return '未知来源';
+  }
+}
+
+export function getDataSourceDescription(source: DataSource): string {
+  switch (source) {
+    case 'demo': return '当前显示的是演示数据，请导入真实档案或使用桌面应用采集';
+    case 'desktop': return '数据来自本机实时采集';
+    case 'imported': return '数据来自导入的历史档案文件';
+    default: return '';
+  }
 }

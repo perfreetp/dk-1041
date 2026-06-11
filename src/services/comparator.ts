@@ -1,13 +1,13 @@
-import { SystemProfile, ComparisonResult, ComparisonItem, ChangedItem, Disk, bytesToGB } from '../types';
+import { SystemProfile, ComparisonResult, ComparisonItem, ChangedItem, DiskChange } from '../types';
 
 export function compareProfiles(historical: SystemProfile, current: SystemProfile): ComparisonResult {
   const added: ComparisonItem[] = [];
   const removed: ComparisonItem[] = [];
   const changed: ChangedItem[] = [];
   const diskChanges = {
-    added: [] as Disk[],
-    removed: [] as Disk[],
-    capacityChanged: [] as { disk: string; oldTotal: number; newTotal: number; oldFree: number; newFree: number }[]
+    added: [] as typeof current.disks,
+    removed: [] as typeof historical.disks,
+    capacityChanged: [] as DiskChange[]
   };
   let hardwareChanges = 0;
   let softwareAdded = 0;
@@ -28,8 +28,8 @@ export function compareProfiles(historical: SystemProfile, current: SystemProfil
     changed.push({
       category: '硬件',
       name: '内存',
-      oldValue: `${bytesToGB(historical.memory.total).toFixed(1)} GB`,
-      newValue: `${bytesToGB(current.memory.total).toFixed(1)} GB`
+      oldValue: `${(historical.memory.total / (1024 * 1024 * 1024)).toFixed(1)} GB`,
+      newValue: `${(current.memory.total / (1024 * 1024 * 1024)).toFixed(1)} GB`
     });
     hardwareChanges++;
   }
@@ -52,6 +52,9 @@ export function compareProfiles(historical: SystemProfile, current: SystemProfil
   historical.disks.forEach(historicalDisk => {
     const currentDisk = currentDisksMap.get(historicalDisk.letter);
     if (currentDisk) {
+      const oldUsedPercent = (historicalDisk.used / historicalDisk.total) * 100;
+      const newUsedPercent = (currentDisk.used / currentDisk.total) * 100;
+
       if (historicalDisk.total !== currentDisk.total ||
           historicalDisk.used !== currentDisk.used ||
           historicalDisk.free !== currentDisk.free) {
@@ -60,7 +63,11 @@ export function compareProfiles(historical: SystemProfile, current: SystemProfil
           oldTotal: historicalDisk.total,
           newTotal: currentDisk.total,
           oldFree: historicalDisk.free,
-          newFree: currentDisk.free
+          newFree: currentDisk.free,
+          oldUsed: historicalDisk.used,
+          newUsed: currentDisk.used,
+          oldUsedPercent,
+          newUsedPercent
         });
       }
     }

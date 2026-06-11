@@ -13,9 +13,13 @@ import {
   Circle,
   Loader2,
   AlertTriangle,
-  AlertOctagon
+  AlertOctagon,
+  Database as DemoIcon,
+  Upload,
+  MonitorCheck
 } from 'lucide-react';
 import { useEffect } from 'react';
+import { getDataSourceLabel, getDataSourceDescription } from '../../types';
 
 type CollectionStatusType = 'idle' | 'collecting' | 'completed' | 'error' | 'unsupported';
 
@@ -161,7 +165,7 @@ export default function CollectPage() {
     collectUsers,
     collectLoginRecords,
     collectAll,
-    isUnsupportedEnvironment
+    dataSource
   } = useAppStore();
 
   useEffect(() => {
@@ -172,6 +176,7 @@ export default function CollectPage() {
 
   const allCompleted = Object.values(collectionStatus).every(s => s === 'completed' || s === 'idle');
   const anyUnsupported = Object.values(collectionStatus).some(s => s === 'unsupported');
+  const isDemo = dataSource === 'demo';
 
   const handleExport = () => {
     if (!profile) return;
@@ -185,6 +190,9 @@ export default function CollectPage() {
     URL.revokeObjectURL(url);
   };
 
+  const SourceIcon = dataSource === 'desktop' ? MonitorCheck : dataSource === 'imported' ? Upload : DemoIcon;
+  const sourceColor = dataSource === 'desktop' ? 'success' : dataSource === 'imported' ? 'primary' : 'warning';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -192,7 +200,11 @@ export default function CollectPage() {
           <h1 className="text-2xl font-bold text-white">系统信息采集</h1>
           <p className="text-slate-400 text-sm mt-1">一键获取完整系统数据</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-${sourceColor}/10 border border-${sourceColor}/30`}>
+            <SourceIcon className={`w-4 h-4 text-${sourceColor}`} />
+            <span className={`text-sm text-${sourceColor}`}>{getDataSourceLabel(dataSource)}</span>
+          </div>
           <button
             onClick={handleExport}
             disabled={!profile}
@@ -204,15 +216,14 @@ export default function CollectPage() {
         </div>
       </div>
 
-      {isUnsupportedEnvironment && (
+      {isDemo && (
         <div className="card-glow p-4 border border-danger/30 bg-danger/10">
           <div className="flex items-center gap-3">
             <AlertOctagon className="w-5 h-5 text-danger flex-shrink-0" />
             <div>
               <p className="text-danger font-medium">浏览器环境限制</p>
               <p className="text-sm text-slate-400 mt-1">
-                当前运行在浏览器中，无法直接获取系统信息。采集功能需要您在 Electron/Tauri 等桌面应用中运行。
-                您可以导入之前保存的历史画像文件进行对比分析。
+                {getDataSourceDescription(dataSource)}
               </p>
             </div>
           </div>
@@ -249,10 +260,10 @@ export default function CollectPage() {
           </div>
           <button
             onClick={collectAll}
-            disabled={collectionProgress > 0 && collectionProgress < 100 || isUnsupportedEnvironment}
+            disabled={collectionProgress > 0 && collectionProgress < 100 || isDemo}
             className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isUnsupportedEnvironment ? (
+            {isDemo ? (
               <>
                 <AlertTriangle className="w-4 h-4" />
                 环境不支持

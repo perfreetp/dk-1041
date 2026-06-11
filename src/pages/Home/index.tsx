@@ -10,13 +10,16 @@ import {
   MemoryStick,
   Activity,
   CircleDollarSign,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  Upload,
+  MonitorCheck
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { formatBytes, bytesToGB } from '../../types';
+import { formatBytes, bytesToGB, getDataSourceLabel, getDataSourceDescription } from '../../types';
 
 export default function HomePage() {
-  const { profile, isLoading, loadProfile, isUnsupportedEnvironment } = useAppStore();
+  const { profile, isLoading, loadProfile, dataSource } = useAppStore();
 
   useEffect(() => {
     loadProfile();
@@ -42,6 +45,9 @@ export default function HomePage() {
 
   const memoryPercent = (profile.memory.used / profile.memory.total) * 100;
 
+  const SourceIcon = dataSource === 'desktop' ? MonitorCheck : dataSource === 'imported' ? Upload : Database;
+  const sourceColor = dataSource === 'desktop' ? 'success' : dataSource === 'imported' ? 'primary' : 'warning';
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -49,35 +55,54 @@ export default function HomePage() {
           <h1 className="text-2xl font-bold text-white">主机概览</h1>
           <p className="text-slate-400 text-sm mt-1">实时监控系统状态</p>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-400">
-          <Clock className="w-4 h-4" />
-          <span>最后采集：{profile.profileTime ? new Date(profile.profileTime).toLocaleString('zh-CN') : '-'}</span>
+        <div className="flex items-center gap-4">
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full bg-${sourceColor}/10 border border-${sourceColor}/30`}>
+            <SourceIcon className={`w-4 h-4 text-${sourceColor}`} />
+            <span className={`text-sm text-${sourceColor}`}>{getDataSourceLabel(dataSource)}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-slate-400">
+            <Clock className="w-4 h-4" />
+            <span>最后采集：{profile.profileTime ? new Date(profile.profileTime).toLocaleString('zh-CN') : '-'}</span>
+          </div>
         </div>
       </div>
 
-      {isUnsupportedEnvironment && (
+      {dataSource === 'demo' && (
         <div className="card-glow p-4 border border-warning/30 bg-warning/10">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-warning flex-shrink-0" />
             <div>
               <p className="text-warning font-medium">浏览器环境限制</p>
               <p className="text-sm text-slate-400 mt-1">
-                当前运行在浏览器中，无法获取真实系统信息。以下显示的是演示数据。
-                请在 Electron/Tauri 等桌面应用中运行以获取真实数据。
+                {getDataSourceDescription(dataSource)}
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {profile.isDemo && !isUnsupportedEnvironment && (
+      {dataSource === 'imported' && (
         <div className="card-glow p-4 border border-primary/30 bg-primary/10">
           <div className="flex items-center gap-3">
-            <Server className="w-5 h-5 text-primary flex-shrink-0" />
+            <Upload className="w-5 h-5 text-primary flex-shrink-0" />
             <div>
-              <p className="text-primary font-medium">演示数据</p>
+              <p className="text-primary font-medium">历史档案模式</p>
               <p className="text-sm text-slate-400 mt-1">
-                当前显示的数据为示例数据，实际系统信息需要在目标电脑上运行采集功能。
+                {getDataSourceDescription(dataSource)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {dataSource === 'desktop' && (
+        <div className="card-glow p-4 border border-success/30 bg-success/10">
+          <div className="flex items-center gap-3">
+            <MonitorCheck className="w-5 h-5 text-success flex-shrink-0" />
+            <div>
+              <p className="text-success font-medium">实时采集数据</p>
+              <p className="text-sm text-slate-400 mt-1">
+                {getDataSourceDescription(dataSource)}
               </p>
             </div>
           </div>
